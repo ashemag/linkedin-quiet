@@ -65,3 +65,7 @@ npm run package
 See [CONTRIBUTING.md](CONTRIBUTING.md) for selector updates and bug reports. Independent project; not affiliated with or endorsed by LinkedIn.
 
 The GitHub Actions template is in `ci/github-actions.yml`. To enable it, copy it to `.github/workflows/test.yml` using a GitHub credential with workflow permissions.
+
+### Standalone browser checks
+
+If your environment cannot launch Playwright, run `node scripts/browser-check.mjs` and open `http://127.0.0.1:8765`. This executes 12 synthetic visibility/navigation checks using the production CSS and scripts, with test-only localhost URL and Chrome-storage adapters. The initial release passed these 12 checks in the Codex in-app browser and the two Node policy tests. The full Playwright suite and actual unpacked-extension smoke test were not executed successfully in the authoring sandbox because it blocked Chromium launch.
