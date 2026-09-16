@@ -1,0 +1,13 @@
+{
+  "name": "linkedin-quiet",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A local-only Chrome extension for your LinkedIn profile, posts, and their comments.",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test tests/policy.test.cjs && playwright test",
+    "test:unit": "node --test tests/policy.test.cjs",
+    "package": "node scripts/package.mjs"
+  },
+  "devDependencies": { "@playwright/test": "1.57.0" }
+}

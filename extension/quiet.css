@@ -1,0 +1,31 @@
+/* Installed before page scripts: unknown content starts hidden, including on failure. */
+html:not([data-lq-auth]) body { visibility: hidden !important; }
+html:not([data-lq-auth]) body * { visibility: hidden !important; }
+html:not([data-lq-auth]) [data-lq-root],
+html:not([data-lq-auth]) [data-lq-root] * { visibility: visible !important; }
+html:not([data-lq-auth]) body > :not([data-lq-path]):not([data-lq-root]):not(#linkedin-quiet) { display: none !important; }
+html:not([data-lq-auth]) [data-lq-path] > :not([data-lq-path]):not([data-lq-root]):not(#linkedin-quiet) { display: none !important; }
+html:not([data-lq-auth]) body { margin: 0 !important; padding-top: 92px !important; background: #f6f5f1 !important; }
+html:not([data-lq-auth]) [data-lq-path] { min-height: 0 !important; }
+html:not([data-lq-auth]) [data-lq-root] { max-width: 900px !important; margin-inline: auto !important; }
+/* These remain hidden even inside approved content. */
+html:not([data-lq-auth]) :is(
+  .feed-shared-update-v2, [data-urn^="urn:li:activity:"], [data-urn^="urn:li:ugcPost:"]
+):not([data-lq-own]) { display: none !important; }
+html:not([data-lq-auth]) :is(
+  .msg-overlay-container, .msg-overlay-list-bubble, .msg-overlay-conversation-bubble,
+  #global-nav, .global-nav, aside, footer, iframe,
+  .scaffold-layout__aside, .scaffold-layout__sidebar,
+  .pv-browsemap-section, .pv-profile-pymk, .pv-interest-entity,
+  .feed-shared-mini-update-v2, .update-components-mini-update-v2,
+  .update-components-promo, .feed-shared-social-action-bar__action-button--send,
+  .social-reshare-button, .send-privately-button, .artdeco-toast-item,
+  [data-lq-hide]
+) { display: none !important; }
+html:not([data-lq-auth]) :is(
+  a[href*="/messaging/"], a[href*="/mynetwork/"], a[href*="/notifications/"],
+  a[href*="/jobs/"], a[href*="/search/"], a[href*="/premium/"],
+  a[href*="/recent-activity/comments"], a[href*="/recent-activity/reactions"],
+  a[href*="/overlay/"], a[href*="/detail/contact-info"]
+) { display: none !important; }
+#linkedin-quiet { display: block !important; visibility: visible !important; position: relative !important; z-index: 2147483647 !important; }

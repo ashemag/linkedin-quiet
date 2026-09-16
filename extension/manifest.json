@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "LinkedIn Quiet",
+  "version": "0.1.0",
+  "description": "Only your profile, your posts, and conversations on your posts. Everything else stays quiet.",
+  "permissions": ["storage"],
+  "action": { "default_title": "LinkedIn Quiet", "default_popup": "popup.html" },
+  "content_scripts": [{
+    "matches": ["https://www.linkedin.com/*", "https://linkedin.com/*"],
+    "css": ["quiet.css"],
+    "js": ["policy.js", "content.js"],
+    "run_at": "document_start"
+  }]
+}
