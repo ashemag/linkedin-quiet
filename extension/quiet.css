@@ -4,14 +4,14 @@ html:not([data-lq-auth]) body * { visibility: hidden !important; }
 html:not([data-lq-auth]) [data-lq-root],
 html:not([data-lq-auth]) [data-lq-root] * { visibility: visible !important; }
 html:not([data-lq-auth]) body > :not([data-lq-path]):not([data-lq-root]):not(#linkedin-quiet) { display: none !important; }
-html:not([data-lq-auth]) [data-lq-path] > :not([data-lq-path]):not([data-lq-root]):not(#linkedin-quiet) { display: none !important; }
+html:not([data-lq-auth]) [data-lq-path]:not([data-lq-layout]):not([data-lq-layout] *) > :not([data-lq-path]):not([data-lq-root]):not(#linkedin-quiet) { display: none !important; }
 html:not([data-lq-auth]) body { margin: 0 !important; padding-top: 92px !important; background: #f6f5f1 !important; }
-html:not([data-lq-auth]) [data-lq-path] { min-height: 0 !important; }
+html:not([data-lq-auth]) [data-lq-path]:not([data-lq-layout]):not([data-lq-layout] *) { min-height: 0 !important; }
 html:not([data-lq-auth]) [data-lq-root] { max-width: 900px !important; margin-inline: auto !important; }
 /* These remain hidden even inside approved content. */
 html:not([data-lq-auth]) :is(
   .feed-shared-update-v2, [data-urn^="urn:li:activity:"], [data-urn^="urn:li:ugcPost:"]
-):not([data-lq-own]) { display: none !important; }
+):not([data-lq-own]):not([data-lq-pending]) { display: none !important; }
 html:not([data-lq-auth]) :is(
   .msg-overlay-container, .msg-overlay-list-bubble, .msg-overlay-conversation-bubble,
   #global-nav, .global-nav, aside, footer, iframe,
@@ -29,3 +29,7 @@ html:not([data-lq-auth]) :is(
   a[href*="/overlay/"], a[href*="/detail/contact-info"]
 ) { display: none !important; }
 #linkedin-quiet { display: block !important; visibility: visible !important; position: relative !important; z-index: 2147483647 !important; }
+
+/* Pending author markup keeps its geometry without leaking through profile roots. */
+html:not([data-lq-auth]) [data-lq-pending],
+html:not([data-lq-auth]) [data-lq-pending] * { visibility: hidden !important; }

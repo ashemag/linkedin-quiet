@@ -19,3 +19,12 @@ test('routes are closed by default', () => {
   assert.equal(route('/checkpoint/challenge', null), 'auth');
   assert.equal(route('/feed/', null), 'setup');
 });
+
+test('posting routes reveal a composer without admitting the feed', () => {
+  assert.equal(profileSlug('https://www.linkedin.com/feed/?shareActive=true'), null);
+  assert.equal(route('/feed/?shareActive=true', 'example'), 'compose');
+  assert.equal(route('/feed/?shareActive=false', 'example'), 'blocked');
+  assert.equal(route('/feed/', 'example'), 'blocked');
+  assert.equal(route('/feed/?shareActive=true', null), 'setup');
+  assert.equal(route('/messaging/?shareActive=true', 'example'), 'blocked');
+});

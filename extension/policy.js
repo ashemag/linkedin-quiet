@@ -19,6 +19,7 @@
       // Authentication must remain available even before a profile is configured.
       if (/^\/(login|uas\/login|checkpoint|challenge|uas\/consumer-email-challenge)(\/|$)/.test(url.pathname)) return 'auth';
       if (!slug) return 'setup';
+      if (/^\/feed\/?$/.test(url.pathname) && url.searchParams.get('shareActive') === 'true') return 'compose';
       const match = url.pathname.match(/^\/in\/([^/]+)(\/.*)?$/);
       if (match && profileSlug(`/in/${match[1]}/`) === slug) {
         const tail = match[2] || '/';

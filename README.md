@@ -10,7 +10,7 @@ An open-source Chrome extension that masks LinkedIn's feed, messages, notificati
 2. Open `chrome://extensions` and enable **Developer mode**.
 3. Click **Load unpacked** and select the `extension` folder.
 4. Open or refresh LinkedIn. Enter your full profile URL, for example `https://www.linkedin.com/in/your-name/`. You can also save it from the extension popup.
-5. Use **My profile** or **My posts** in the new navigation bar.
+5. Use **My profile**, **My posts**, or **New post** in the new navigation bar. **New post** is also in the extension popup.
 
 No build step is needed. To update, replace the extension files, click **Reload** on its Chrome extension card, and refresh LinkedIn tabs. To temporarily see normal LinkedIn, disable the extension on `chrome://extensions` and reload the page.
 
@@ -20,6 +20,7 @@ No build step is needed. To update, replace the extension files, click **Reload*
 | --- | --- |
 | Your profile | Main profile content, after matching its top-card profile link to your saved URL |
 | Your posts | Original post cards whose author link matches your saved profile |
+| Create a post | **New post** opens LinkedIn’s native composer; the feed remains masked |
 | Comments and replies on your posts | Native comments and inline reply controls inside an approved post |
 | Direct post links | Hidden until the displayed post's author can be verified |
 | Feed, messages, notifications, other profiles, jobs, network | Masked, including direct URLs |
@@ -37,11 +38,11 @@ This is a visual attention filter, not a network blocker or security boundary: L
 
 ## Compatibility and limitations
 
-This initial release is tested against synthetic LinkedIn-style DOM fixtures. The suite also includes an unpacked-extension smoke test for Chromium. It has **not been validated in a signed-in live LinkedIn session**. LinkedIn frequently changes its markup and uses different layouts across accounts. Unknown post layouts stay hidden. If your profile or posts remain masked, verify your saved URL first; a selector update may be needed.
+This release is tested against synthetic LinkedIn-style DOM fixtures. The suite also includes an unpacked-extension smoke test for Chromium. It has **not been validated in a signed-in live LinkedIn session**. LinkedIn frequently changes its markup and uses different layouts across accounts. Unknown post layouts stay hidden. If your profile or posts remain masked, verify your saved URL first; a selector update may be needed.
 
-Supported profile routes are `/in/<you>/` and `/in/<you>/recent-activity/shares/` (also `all/`, filtered to your own posts). Profile detail/editor overlays, standalone article readers, posting composers, share dialogs, and other routes are intentionally outside this first version. Inline comments are supported; dialogs mounted outside a verified post stay masked. It does not auto-scroll, fetch additional posts, or automate interactions.
+Supported profile routes are `/in/<you>/` and `/in/<you>/recent-activity/shares/` (also `all/`, filtered to your own posts). The native post composer is allowed on the feed and your own profile/post routes. If the editor does not open automatically, a recognized native **Start a post** button remains visible as a fallback. Recognized composer settings dialogs are allowed; unfamiliar media/audience dialogs may still need selector updates. Profile detail/editor overlays, standalone article readers, private sharing, and other routes remain masked. Inline comments are supported. The extension never clicks Post, submits a draft, or calls LinkedIn APIs for you. It does not auto-scroll; native scroll-triggered loading and recognized **Load more posts** buttons remain available on your posts page.
 
-Masking CSS is injected at `document_start` before the page renders. DOM mutations recheck ownership, and the Navigation API revokes visible roots on in-page navigation; a short URL check is a fallback. No DOM-based extension can guarantee perfect filtering across arbitrary future LinkedIn layouts.
+Masking CSS is injected at `document_start` before the page renders. DOM mutations invalidate changed cards immediately and batch verification once per animation frame. Existing authors are not rechecked for unrelated changes. The Navigation API revokes visible roots on in-page navigation; a URL check is used only in browsers without that API. Invisible loading areas retain their layout on your posts page so native loading observers can still run. No DOM-based extension can guarantee perfect filtering across arbitrary future LinkedIn layouts.
 
 ## Development
 
@@ -54,7 +55,7 @@ npm test
 npm run package
 ```
 
-`extension/` is the complete distributable. `dist/linkedin-quiet-0.1.0.zip` contains the extension plus its license, README, and privacy notice. The packaging script requires the standard `zip` command.
+`extension/` is the complete distributable. `dist/linkedin-quiet-0.2.0.zip` contains the extension plus its license, README, and privacy notice. The packaging script requires the standard `zip` command.
 
 - `policy.js`: shared strict URL/profile rules.
 - `content.js`: ownership checks, local setup, and navigation handling.
@@ -68,4 +69,4 @@ The GitHub Actions template is in `ci/github-actions.yml`. To enable it, copy it
 
 ### Standalone browser checks
 
-If your environment cannot launch Playwright, run `node scripts/browser-check.mjs` and open `http://127.0.0.1:8765`. This executes 12 synthetic visibility/navigation checks using the production CSS and scripts, with test-only localhost URL and Chrome-storage adapters. The initial release passed these 12 checks in the Codex in-app browser and the two Node policy tests. The full Playwright suite and actual unpacked-extension smoke test were not executed successfully in the authoring sandbox because it blocked Chromium launch.
+If your environment cannot launch Playwright, run `node scripts/browser-check.mjs` and open `http://127.0.0.1:8765`. This executes 21 synthetic visibility/navigation/composer/loading checks using the production CSS and scripts, with test-only localhost URL and Chrome-storage adapters. Version 0.2.0 passed all 21 checks in the Codex in-app browser and three Node policy tests. The 100-post fixture verified zero author rechecks after an unrelated mutation and exactly one after one author-link edit. This measures extension work, not end-to-end LinkedIn server latency. Composer tests submit only a local fixture; no real LinkedIn post was published. The full Playwright suite and actual unpacked-extension smoke test were not executed successfully in the authoring sandbox because it blocked Chromium launch.

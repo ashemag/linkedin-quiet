@@ -89,3 +89,42 @@ test('CSS alone masks the site before JavaScript starts', async ({page}) => {
   await page.setContent(`<style>${read('quiet.css')}</style><p id="feed">Distractions</p>`);
   expect(await shown(page,'#feed')).toBe(false);
 });
+test('posting composer is usable without revealing the feed or other dialogs', async ({page}) => {
+  await open(page, '/feed/?shareActive=true', card('example','own') + '<div class="artdeco-modal share-box-v2__modal" role="dialog"><div id="editor" role="textbox" aria-label="Write a post" contenteditable="true"></div><button id="publish">Post</button></div><div role="dialog" id="unrelated">Message dialog</div>');
+  await expect(page.locator('#editor')).toBeVisible();
+  await page.locator('#editor').fill('A draft for my next post');
+  await expect(page.locator('#editor')).toBeFocused();
+  await expect(page.locator('#publish')).toBeVisible();
+  expect(await shown(page,'#own')).toBe(false);
+  expect(await shown(page,'#unrelated')).toBe(false);
+  await page.evaluate(()=>history.replaceState({},'','/feed/'));
+  await expect(page.locator('#editor')).toBeVisible();
+  await page.locator('#editor').evaluate(el=>el.closest('[role="dialog"]').remove());
+  expect(await shown(page,'#own')).toBe(false);
+});
+test('native loading areas retain layout and load-more buttons are usable',async ({page})=>{
+  await open(page,'/in/example/recent-activity/shares/','<div id="sentinel" style="height:20px">Hidden loader</div><button class="scaffold-finite-scroll__load-button" id="more">Load more</button>');
+  await expect(page.locator('main')).toHaveAttribute('data-lq-layout','');
+  expect(await page.locator('#sentinel').evaluate(el=>el.getBoundingClientRect().height)).toBe(20);
+  expect(await shown(page,'#sentinel')).toBe(false);
+  await expect(page.locator('#more')).toBeVisible();
+});
+test('unrelated changes do not recheck all authors',async ({page})=>{
+  await open(page,'/in/example/recent-activity/shares/',Array.from({length:100},(_,i)=>card('example','p'+i)).join('')+'<span id="noise"></span>');
+  await expect(page.locator('#p99')).toHaveAttribute('data-lq-own','');
+  await page.evaluate(()=>{
+    window.actorChecks=0;
+    const original=Element.prototype.querySelectorAll;
+    Element.prototype.querySelectorAll=function(selector){
+      if(selector.startsWith('.update-components-actor__meta-link'))window.actorChecks++;
+      return original.call(this,selector);
+    };
+    document.querySelector('#noise').className='changed';
+  });
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(()=>window.actorChecks)).toBe(0);
+  await page.locator('#p50 a').evaluate(el=>el.href='/in/other/');
+  await expect(page.locator('#p50')).not.toHaveAttribute('data-lq-own','');
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(()=>window.actorChecks)).toBe(1);
+});
