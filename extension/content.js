@@ -9,7 +9,6 @@
   let fullScan = true;
   let composeSession = false;
   let composerSeen = false;
-  let openingAttempts = 0;
   let openingTimer = null;
   let openingDeadline = 0;
   // Keep native initialization targets measurable from document_start.
@@ -26,18 +25,78 @@
   const START_POST = 'button.share-box-feed-entry__trigger, button[data-control-name="share.sharebox_focus"]';
   const DIALOG = '[role="dialog"], dialog, [aria-modal="true"], .artdeco-modal';
   const composerRoots = new Set();
+  const startRoots = new Set();
+  const maskedShadowRoots = new Set();
+  let deepRootsCache = null;
+  let domObserver;
   const labelOf = el => (el.getAttribute('aria-label') || el.textContent || '').replace(/\s+/g, ' ').trim();
+  const observerOptions = { childList: true, subtree: true, attributes: true, attributeFilter: ['href', 'class', 'data-urn', 'role', 'aria-label', 'aria-modal', 'contenteditable', 'hidden', 'aria-hidden'] };
+  function observeShadowRoot(root) {
+    if (!root.querySelector('style[data-lq-shadow-mask]')) {
+      const style = document.createElement('style');
+      style.setAttribute('data-lq-shadow-mask', '');
+      style.textContent = `
+      :host, * { visibility: hidden !important; }
+      [data-lq-root], [data-lq-root] *, [data-lq-path] { visibility: visible !important; }
+      [data-lq-start] {
+        position: fixed !important; top: min(68vh, 620px) !important; left: 50% !important;
+        transform: translateX(-50%) !important; z-index: 2147483000 !important;
+        min-width: 220px !important;
+      }
+      [hidden], [aria-hidden="true"] { display: none !important; }
+      `;
+      root.prepend(style);
+    }
+    maskedShadowRoots.add(root);
+    domObserver?.observe(root, observerOptions);
+  }
+  function clearShadowMasks() {
+    for (const root of maskedShadowRoots) {
+      for (const style of root.querySelectorAll('style[data-lq-shadow-mask]')) style.remove();
+    }
+    maskedShadowRoots.clear();
+  }
+  function deepQueryAll(selector) {
+    const matches = [];
+    if (!deepRootsCache) {
+      const search = [document];
+      const seen = new Set(search);
+      for (let index = 0; index < search.length; index++) {
+        const root = search[index];
+        for (const element of root.querySelectorAll('*')) {
+          const next = element.shadowRoot;
+          if (!next || seen.has(next)) continue;
+          seen.add(next);
+          observeShadowRoot(next);
+          search.push(next);
+        }
+      }
+      deepRootsCache = search;
+    }
+    for (const root of deepRootsCache) {
+      matches.push(...root.querySelectorAll(selector));
+    }
+    return matches;
+  }
+  function composerAround(editor) {
+    for (let node = editor.parentElement; node; node = node.parentElement) {
+      if (node === document.body || node === document.documentElement) return null;
+      const publishes = [...node.querySelectorAll('button, [role="button"]')].some(button => /^post$/i.test(labelOf(button)));
+      if (publishes) return node;
+    }
+    return null;
+  }
   function isComposer(dialog) {
     if (dialog.matches('[hidden], [aria-hidden="true"], dialog:not([open])') || dialog.style.display === 'none') return false;
     if (dialog.matches(COMPOSER + ', ' + POST_DIALOG) || dialog.querySelector(COMPOSER + ', ' + POST_DIALOG)) return true;
-    if (!composeSession || !dialog.matches(DIALOG)) return false;
+    if (!composeSession) return false;
     // Newer LinkedIn layouts use generated classes. Verify the editor and the
     // publishing control together instead of revealing arbitrary dialogs.
     const editor = dialog.querySelector('[contenteditable="true"], textarea[aria-label]');
     return !!editor && [...dialog.querySelectorAll('button, [role="button"]')].some(button => /^post$/i.test(labelOf(button)));
   }
   function startPostButtons() {
-    return [...document.querySelectorAll('button, [role="button"]')].filter(button =>
+    return deepQueryAll('button, [role="button"], .share-box-feed-entry__trigger').filter(button =>
       !button.closest(CARD + ', .msg-overlay-container') &&
       !button.closest('[hidden], [aria-hidden="true"]') &&
       (button.matches(START_POST) || /^start a post(?:$|[\s,.…])/i.test(labelOf(button))));
@@ -50,7 +109,6 @@
     if (editor) { editor.focus(); return; }
     composeSession = true;
     composerSeen = false;
-    openingAttempts = 0;
     openingDeadline = Date.now() + 20000;
     clearTimeout(openingTimer); openingTimer = null;
     document.documentElement.setAttribute('data-lq-compose', '');
@@ -155,11 +213,18 @@
   }
   function ancestorsOf(elements) {
     const result = new Set();
-    for (const el of elements) for (let parent = el.parentElement; parent && parent !== document.body; parent = parent.parentElement) result.add(parent);
+    for (const el of elements) {
+      let parent = el.parentElement || el.getRootNode()?.host;
+      while (parent && parent !== document.body) {
+        result.add(parent);
+        parent = parent.parentElement || parent.getRootNode()?.host;
+      }
+    }
     return result;
   }
   function render() {
     scheduled = false;
+    deepRootsCache = null;
     mount();
     if (!host) return;
     if (currentURL !== location.href) fullScan = true;
@@ -168,10 +233,12 @@
     const isFeed = /^\/feed\/?$/.test(location.pathname);
     composeSession = mode === 'compose' || (composeSession && isFeed);
     document.documentElement.toggleAttribute('data-lq-compose', composeSession && !!slug);
+    if (!composeSession) clearShadowMasks();
     if (composeSession && !openingDeadline) openingDeadline = Date.now() + 20000;
     const approved = new Set();
     const loading = new Set();
     const composing = new Set();
+    const nativeStarts = new Set();
     const auth = mode === 'auth';
     document.documentElement.toggleAttribute('data-lq-auth', auth);
     host.hidden = auth;
@@ -218,6 +285,14 @@
       if (slug && (isFeed || ['profile', 'posts', 'post'].includes(mode))) {
         const candidates = new Set(document.querySelectorAll(DIALOG));
         for (const marker of document.querySelectorAll(COMPOSER + ', ' + POST_DIALOG)) candidates.add(marker.closest(DIALOG) || marker);
+        if (composeSession) {
+          for (const dialog of deepQueryAll(DIALOG)) candidates.add(dialog);
+          for (const marker of deepQueryAll(COMPOSER + ', ' + POST_DIALOG)) candidates.add(marker.closest(DIALOG) || marker);
+          for (const editor of deepQueryAll('[contenteditable="true"], textarea[aria-label]')) {
+            const candidate = composerAround(editor);
+            if (candidate) candidates.add(candidate);
+          }
+        }
         for (const dialog of candidates) {
           if (!isComposer(dialog)) continue;
           approved.add(dialog);
@@ -225,36 +300,37 @@
           hasComposer = true;
         }
         if (isFeed && composeSession && !hasComposer) {
-          for (const button of startPostButtons()) approved.add(button);
+          for (const button of startPostButtons()) {
+            approved.add(button);
+            nativeStarts.add(button);
+          }
         }
       }
     }
     const ancestors = ancestorsOf([...approved, ...loading]);
     for (const el of loading) ancestors.add(el);
     reconcile(composerRoots, composing, 'data-lq-composer');
+    reconcile(startRoots, nativeStarts, 'data-lq-start');
     reconcile(layouts, loading, 'data-lq-layout');
     reconcile(roots, approved, 'data-lq-root');
     surfaces.clear();
     for (const root of approved) if (!root.matches(CARD)) surfaces.add(root);
     reconcile(paths, ancestors, 'data-lq-path');
     if (!composeSession) {
-      composerSeen = false; openingAttempts = 0; openingDeadline = 0;
+      composerSeen = false; openingDeadline = 0;
       clearTimeout(openingTimer); openingTimer = null;
     } else if (hasComposer) {
       composerSeen = true;
       clearTimeout(openingTimer); openingTimer = null;
     } else if (!composerSeen && Date.now() < openingDeadline && !openingTimer) {
-      const trigger = startPostButtons().find(button => !button.disabled && button.getAttribute('aria-disabled') !== 'true' && getComputedStyle(button).display !== 'none' && button.getClientRects().length);
-      // Keep looking while lazy controls and their handlers initialize. Both the
-      // retries and polling end after 20 seconds; an explicit click starts over.
+      // Shadow-root controls can appear without a document-level mutation.
+      // Poll briefly, but let the user click LinkedIn's real control so the
+      // event carries browser user activation.
       openingTimer = setTimeout(() => { openingTimer = null; schedule(); }, 1000);
-      if (trigger && openingAttempts < 10) {
-        openingAttempts++;
-        trigger.click(); // Start a post only. Never click Post or submit a draft.
-      }
     }
-    const opening = composeSession && !composerSeen && Date.now() < openingDeadline;
-    const key = `${slug}:${mode}:${hasContent}:${hasComposer}:${composeSession}:${opening}`;
+    const hasStart = nativeStarts.size > 0;
+    const opening = composeSession && !composerSeen && !hasStart && Date.now() < openingDeadline;
+    const key = `${slug}:${mode}:${hasContent}:${hasComposer}:${composeSession}:${opening}:${hasStart}`;
     if (statusKey !== key) {
       statusKey = key;
       shadow.querySelector('#profile').href = slug ? `https://www.linkedin.com/in/${encodeURIComponent(slug)}/` : '#';
@@ -264,9 +340,9 @@
       shadow.querySelector('#compose-actions').hidden = !composeSession;
       shadow.querySelector('#card').classList.toggle('compose-card', composeSession);
       shadow.querySelector('#card').hidden = auth || hasContent || hasComposer;
-      shadow.querySelector('#heading').textContent = composeSession ? opening ? 'Opening your editor…' : 'Ready for your next idea.' : mode === 'blocked' ? 'Nothing to catch up on.' : 'Your space is quiet.';
+      shadow.querySelector('#heading').textContent = composeSession ? hasStart ? 'Create your post.' : opening ? 'Loading LinkedIn’s posting control…' : 'Ready for your next idea.' : mode === 'blocked' ? 'Nothing to catch up on.' : 'Your space is quiet.';
       shadow.querySelector('#description').textContent = composeSession
-        ? opening ? 'Waiting for LinkedIn’s posting controls to load. Your feed and messages stay hidden.' : 'Select Open editor to try again. If LinkedIn’s controls haven’t loaded, reload the posting page. Your feed stays hidden.'
+        ? hasStart ? 'Select LinkedIn’s Start a post button below. Your feed and messages stay hidden.' : opening ? 'Waiting briefly for LinkedIn’s own posting control. Your feed and messages stay hidden.' : 'Select Open editor to look again. If LinkedIn’s control never loads, reload the posting page.'
         : ['post', 'posts', 'profile'].includes(mode)
           ? 'Waiting for content that matches your profile. If nothing appears, check your saved URL in Settings. Unrecognized posts stay hidden.'
           : 'The feed, messages, and notifications are tucked away. Your profile and your posts are right here when you need them.';
@@ -276,7 +352,7 @@
   function schedule() {
     if (!scheduled) { scheduled = true; requestAnimationFrame(render); }
   }
-  new MutationObserver(mutations => {
+  domObserver = new MutationObserver(mutations => {
     const contentMode = ['profile', 'posts', 'post'].includes(route(location.href, slug));
     for (const mutation of mutations) {
       const target = mutation.target.nodeType === Node.ELEMENT_NODE ? mutation.target : mutation.target.parentElement;
@@ -308,14 +384,22 @@
       }
     }
     schedule();
-  }).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['href', 'class', 'data-urn', 'role', 'aria-label', 'aria-modal', 'contenteditable', 'hidden', 'aria-hidden'] });
+  });
+  domObserver.observe(document.documentElement, observerOptions);
   function maskForNavigation() {
+    composeSession = false;
+    composerSeen = false;
+    openingDeadline = 0;
+    clearTimeout(openingTimer); openingTimer = null;
     document.documentElement.removeAttribute('data-lq-auth');
+    document.documentElement.removeAttribute('data-lq-compose');
+    clearShadowMasks();
     reconcile(roots, new Set(), 'data-lq-root');
     surfaces.clear();
     reconcile(paths, new Set(), 'data-lq-path');
     reconcile(layouts, new Set(), 'data-lq-layout');
     reconcile(composerRoots, new Set(), 'data-lq-composer');
+    reconcile(startRoots, new Set(), 'data-lq-start');
     reconcile(owned, new Set(), 'data-lq-own');
     reconcile(pending, new Set(), 'data-lq-pending');
     cards.clear(); dirtyCards.clear(); fullScan = true;
@@ -326,7 +410,12 @@
     if (link.origin === location.origin && route(link.href, slug) !== route(location.href, slug)) maskForNavigation();
   }, true);
   if (window.navigation) {
-    navigation.addEventListener('navigate', maskForNavigation);
+    navigation.addEventListener('navigate', () => {
+      maskForNavigation();
+      // The navigate event can precede the history entry update. Reconcile
+      // once more after the URL commits so compose state cannot return.
+      setTimeout(() => { maskForNavigation(); schedule(); }, 0);
+    });
     navigation.addEventListener('currententrychange', schedule);
   }
   addEventListener('popstate', () => { maskForNavigation(); schedule(); });

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.3
+
+- Find LinkedIn's native Start a post control and composer inside open shadow DOM, matching LinkedIn's current desktop layout.
+- Show the actual native Start a post control so the user's click carries browser user activation; stop trying to open it with a scripted click.
+- Recognize current composers that no longer use a dialog role while keeping unrelated dialogs, feed cards, and messages masked.
+- Reinstall the shadow-root mask if LinkedIn replaces a component's contents while opening the editor.
+- Pass 34 local browser fixture checks and three route-policy tests, including shadow-root trigger, composer, and cleanup regressions.
+
 ## 0.2.2
 
 - Preserve invisible feed-page geometry during posting so lazy native controls can initialize without exposing feed content or messages.

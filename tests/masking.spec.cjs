@@ -135,6 +135,23 @@ test('generated-class composer keeps its native publishing footer visible', asyn
   expect(await shown(page, '#own')).toBe(false);
   expect(await shown(page, '#message')).toBe(false);
 });
+test('shadow-root posting uses LinkedIn native control and keeps distractions hidden', async ({page}) => {
+  await open(page, '/feed/?shareActive=true', card('example','own') + '<div id="shadow-host"></div>');
+  await page.evaluate(() => {
+    const root = document.querySelector('#shadow-host').attachShadow({mode:'open'});
+    root.innerHTML = '<button id="shadow-start">Start a post, try writing with AI</button>';
+    root.querySelector('button').onclick = () => {
+      root.innerHTML = '<section><div id="shadow-editor" contenteditable="true" aria-label="What do you want to talk about?"></div><footer><button id="shadow-post">Post</button></footer></section>';
+    };
+  });
+  await expect(page.locator('#shadow-start')).toBeVisible();
+  await expect(page.locator('#shadow-editor')).toHaveCount(0);
+  await page.locator('#shadow-start').click();
+  await expect(page.locator('#shadow-editor')).toBeVisible();
+  await expect(page.locator('#shadow-post')).toBeVisible();
+  expect(await shown(page, '#own')).toBe(false);
+  expect(await shown(page, '.msg-overlay-container')).toBe(false);
+});
 test('semantic composer is not allowed on messaging routes', async ({page}) => {
   await open(page, '/messaging/', '<div role="dialog"><div role="textbox" contenteditable="true" id="unrelated-editor"></div><button>Post</button></div>');
   expect(await shown(page, '#unrelated-editor')).toBe(false);

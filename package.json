@@ -1,6 +1,6 @@
 {
   "name": "linkedin-quiet",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "private": true,
   "description": "A local-only Chrome extension for your LinkedIn profile, posts, and their comments.",
   "license": "MIT",
