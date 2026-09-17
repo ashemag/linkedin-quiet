@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.2
+
+- Preserve invisible feed-page geometry during posting so lazy native controls can initialize without exposing feed content or messages.
+- Continue bounded initialization checks for 20 seconds instead of exhausting retries in 1.4 seconds; stop automatic opening once the composer appears.
+- Make New post retry on the current posting page and focus an existing draft instead of navigating away.
+- Replace instructions pointing to a missing button with Open editor and Reload posting page controls.
+- Recognize Start a post controls with extra accessible help text and native editables without an explicit textbox role.
+- Remove the temporary local diagnostic before packaging.
+- Pass 31 local browser fixture checks and three route-policy tests. The lazy-loading and delayed-handler regressions fail on 0.2.1 and pass here. Work was based on the supplied screenshot; this release has not been verified in the user's live LinkedIn session.
+
 ## 0.2.1
 
 - Recognize newer native composer dialogs using their editable field and Post control, instead of relying solely on older class names.
