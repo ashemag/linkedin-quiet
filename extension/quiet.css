@@ -14,7 +14,7 @@ html:not([data-lq-auth]) :is(
 ):not([data-lq-own]):not([data-lq-pending]) { display: none !important; }
 html:not([data-lq-auth]) :is(
   .msg-overlay-container, .msg-overlay-list-bubble, .msg-overlay-conversation-bubble,
-  #global-nav, .global-nav, aside, footer, iframe,
+  #global-nav, .global-nav, iframe,
   .scaffold-layout__aside, .scaffold-layout__sidebar,
   .pv-browsemap-section, .pv-profile-pymk, .pv-interest-entity,
   .feed-shared-mini-update-v2, .update-components-mini-update-v2,
@@ -33,3 +33,6 @@ html:not([data-lq-auth]) :is(
 /* Pending author markup keeps its geometry without leaking through profile roots. */
 html:not([data-lq-auth]) [data-lq-pending],
 html:not([data-lq-auth]) [data-lq-pending] * { visibility: hidden !important; }
+
+/* A native composer's footer contains its publishing controls. */
+html:not([data-lq-auth]) :is(aside, footer):not([data-lq-composer] *) { display: none !important; }

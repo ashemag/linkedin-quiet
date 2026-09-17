@@ -8,6 +8,9 @@
   let scheduled = false;
   let fullScan = true;
   let composeSession = false;
+  let composerSeen = false;
+  let openingAttempts = 0;
+  let openingTimer = null;
   const cards = new Set();
   const dirtyCards = new Set();
   const actors = new WeakMap();
@@ -17,6 +20,23 @@
   const COMPOSER = '.share-box-v2__modal, .share-box__modal, .share-creation-state, [data-test-share-creation-modal]';
   const POST_DIALOG = '.share-box-audience-dialog, .share-box-post-settings, .share-box-visibility-options, .share-box__discard-dialog';
   const START_POST = 'button.share-box-feed-entry__trigger, button[data-control-name="share.sharebox_focus"]';
+  const DIALOG = '[role="dialog"], dialog, [aria-modal="true"], .artdeco-modal';
+  const composerRoots = new Set();
+  const labelOf = el => (el.getAttribute('aria-label') || el.textContent || '').replace(/\s+/g, ' ').trim();
+  function isComposer(dialog) {
+    if (dialog.matches('[hidden], [aria-hidden="true"], dialog:not([open])') || dialog.style.display === 'none') return false;
+    if (dialog.matches(COMPOSER + ', ' + POST_DIALOG) || dialog.querySelector(COMPOSER + ', ' + POST_DIALOG)) return true;
+    if (!composeSession || !dialog.matches(DIALOG)) return false;
+    // Newer LinkedIn layouts use generated classes. Verify the editor and the
+    // publishing control together instead of revealing arbitrary dialogs.
+    const editor = dialog.querySelector('[contenteditable="true"][role="textbox"], .ql-editor[contenteditable="true"], textarea[aria-label]');
+    return !!editor && [...dialog.querySelectorAll('button, [role="button"]')].some(button => /^post$/i.test(labelOf(button)));
+  }
+  function startPostButtons() {
+    return [...document.querySelectorAll('button, [role="button"]')].filter(button =>
+      !button.closest(CARD + ', .msg-overlay-container') &&
+      (button.matches(START_POST) || /^start a post$/i.test(labelOf(button))));
+  }
   const LOAD_MORE = 'button.scaffold-finite-scroll__load-button';
   let host, shadow;
   let statusKey = '';
@@ -124,6 +144,7 @@
     composeSession = mode === 'compose' || (composeSession && isFeed);
     const approved = new Set();
     const loading = new Set();
+    const composing = new Set();
     const auth = mode === 'auth';
     document.documentElement.toggleAttribute('data-lq-auth', auth);
     host.hidden = auth;
@@ -168,23 +189,43 @@
       }
       // Only recognized post-creation surfaces, never all dialogs or the feed.
       if (slug && (isFeed || ['profile', 'posts', 'post'].includes(mode))) {
-        for (const marker of document.querySelectorAll(COMPOSER + ', ' + POST_DIALOG)) {
-          const dialog = marker.closest('[role="dialog"], .artdeco-modal') || marker;
+        const candidates = new Set(document.querySelectorAll(DIALOG));
+        for (const marker of document.querySelectorAll(COMPOSER + ', ' + POST_DIALOG)) candidates.add(marker.closest(DIALOG) || marker);
+        for (const dialog of candidates) {
+          if (!isComposer(dialog)) continue;
           approved.add(dialog);
+          composing.add(dialog);
           hasComposer = true;
         }
         if (isFeed && composeSession && !hasComposer) {
-          for (const button of document.querySelectorAll(START_POST)) approved.add(button);
+          for (const button of startPostButtons()) approved.add(button);
         }
       }
     }
     const ancestors = ancestorsOf([...approved, ...loading]);
     for (const el of loading) ancestors.add(el);
+    reconcile(composerRoots, composing, 'data-lq-composer');
     reconcile(layouts, loading, 'data-lq-layout');
     reconcile(roots, approved, 'data-lq-root');
     surfaces.clear();
     for (const root of approved) if (!root.matches(CARD)) surfaces.add(root);
     reconcile(paths, ancestors, 'data-lq-path');
+    if (!composeSession) {
+      composerSeen = false; openingAttempts = 0;
+      clearTimeout(openingTimer); openingTimer = null;
+    } else if (hasComposer) {
+      composerSeen = true;
+      clearTimeout(openingTimer); openingTimer = null;
+    } else if (!composerSeen && openingAttempts < 3 && !openingTimer) {
+      const trigger = startPostButtons().find(button => !button.disabled && button.getAttribute('aria-disabled') !== 'true');
+      if (trigger) {
+        openingAttempts++;
+        // Open only the explicitly requested native editor, never its Post action.
+        // Retry briefly if LinkedIn's event handlers are still hydrating.
+        openingTimer = setTimeout(() => { openingTimer = null; schedule(); }, 700);
+        trigger.click();
+      }
+    }
     const key = `${slug}:${mode}:${hasContent}:${hasComposer}:${composeSession}`;
     if (statusKey !== key) {
       statusKey = key;
@@ -228,8 +269,7 @@
       }
       // Revoke recycled dialogs without disturbing focus while the user types.
       for (const root of surfaces) {
-        const dialogLostMarker = root.matches('[role="dialog"], .artdeco-modal') &&
-          !root.matches(COMPOSER + ', ' + POST_DIALOG) && !root.querySelector(COMPOSER + ', ' + POST_DIALOG);
+        const dialogLostMarker = root.matches(DIALOG) && !isComposer(root);
         const profileIdentityChanged = root.matches('main') && root.contains(target) &&
           (target.closest('.pv-top-card, [data-view-name="profile-top-card"]') || mutation.attributeName === 'class');
         if (!root.isConnected || dialogLostMarker || profileIdentityChanged) {
@@ -238,13 +278,14 @@
       }
     }
     schedule();
-  }).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['href', 'class', 'data-urn', 'role'] });
+  }).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['href', 'class', 'data-urn', 'role', 'aria-label', 'aria-modal', 'contenteditable', 'hidden', 'aria-hidden'] });
   function maskForNavigation() {
     document.documentElement.removeAttribute('data-lq-auth');
     reconcile(roots, new Set(), 'data-lq-root');
     surfaces.clear();
     reconcile(paths, new Set(), 'data-lq-path');
     reconcile(layouts, new Set(), 'data-lq-layout');
+    reconcile(composerRoots, new Set(), 'data-lq-composer');
     reconcile(owned, new Set(), 'data-lq-own');
     reconcile(pending, new Set(), 'data-lq-pending');
     cards.clear(); dirtyCards.clear(); fullScan = true;

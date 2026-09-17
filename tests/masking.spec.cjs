@@ -128,3 +128,14 @@ test('unrelated changes do not recheck all authors',async ({page})=>{
   await page.waitForTimeout(100);
   expect(await page.evaluate(()=>window.actorChecks)).toBe(1);
 });
+test('generated-class composer keeps its native publishing footer visible', async ({page}) => {
+  await open(page, '/feed/?shareActive=true', card('example','own') + '<dialog open class="generated-layout"><div role="textbox" contenteditable="true" aria-label="Write a post" id="modern-editor"></div><footer><button id="modern-post">Post</button></footer></dialog><div role="dialog" id="message"><div role="textbox" contenteditable="true"></div><button>Send</button></div>');
+  await expect(page.locator('#modern-editor')).toBeVisible();
+  await expect(page.locator('#modern-post')).toBeVisible();
+  expect(await shown(page, '#own')).toBe(false);
+  expect(await shown(page, '#message')).toBe(false);
+});
+test('semantic composer is not allowed on messaging routes', async ({page}) => {
+  await open(page, '/messaging/', '<div role="dialog"><div role="textbox" contenteditable="true" id="unrelated-editor"></div><button>Post</button></div>');
+  expect(await shown(page, '#unrelated-editor')).toBe(false);
+});
